@@ -9,6 +9,12 @@ Install = spoon.SpoonInstall
 Install:andUse("ReloadConfiguration", { start = true })
 Install:andUse("Caffeine", { start = true })
 Install:andUse("WeekNumber", { start = true })
+Install:andUse("KSheet",
+  {
+    hotkeys = {
+      toggle = { { "cmd", "alt" }, "/" }
+    }
+  })
 
 -- HANDLE SCROLLING
 local oldmousepos = {}
