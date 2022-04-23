@@ -22,7 +22,7 @@ local scrollmult = -4	-- negative multiplier makes mouse work like traditional s
 local reverse = true
 
 mousetap = hs.eventtap.new({5}, function(e)
-    oldmousepos = hs.mouse.getAbsolutePosition()
+    oldmousepos = hs.mouse.absolutePosition
     local mods = hs.eventtap.checkKeyboardModifiers()
     if mods['cmd'] then
         local dx = e:getProperty(hs.eventtap.event.properties['mouseEventDeltaX'])
@@ -35,7 +35,7 @@ mousetap = hs.eventtap.new({5}, function(e)
         scroll:post()
 
         -- put the mouse back
-        hs.mouse.setAbsolutePosition(oldmousepos)
+        hs.mouse.absolutePosition = oldmousepos
 
         return false, {}
     else
