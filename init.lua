@@ -8,6 +8,7 @@ Install = spoon.SpoonInstall
 -- Install Spoons
 Install:andUse("ReloadConfiguration", { start = true })
 Install:andUse("Caffeine", { start = true })
+Install:andUse("WeekNumber", { start = true })
 
 -- HANDLE SCROLLING
 local oldmousepos = {}
