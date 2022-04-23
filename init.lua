@@ -21,7 +21,7 @@ local oldmousepos = {}
 local scrollmult = -4	-- negative multiplier makes mouse work like traditional scrollwheel
 local reverse = true
 
-mousetap = hs.eventtap.new({5}, function(e)
+mousetap = hs.eventtap.new({hs.eventtap.event.types.mouseMoved}, function(e)
     oldmousepos = hs.mouse.absolutePosition
     local mods = hs.eventtap.checkKeyboardModifiers()
     if mods['cmd'] then
