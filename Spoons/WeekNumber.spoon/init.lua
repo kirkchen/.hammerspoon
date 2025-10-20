@@ -9,7 +9,7 @@ obj.__index = obj
 
 -- Metadata
 obj.name = "WeekNumber"
-obj.version = "1.0"
+obj.version = "1.2"
 obj.author = "Kirk Chen <rwk0119@yahoo.com.tw>"
 obj.homepage = "https://github.com/Hammerspoon/Spoons"
 obj.license = "MIT - https://opensource.org/licenses/MIT"
@@ -38,41 +38,49 @@ end
 local function getWeekNumberOfYear(tm)
     local dayOfYear = os.date("%j",tm)
     local dayAdd = getDayAdd(tm)
-    local dayOfYearCorrected = dayOfYear + dayAdd
-    if(dayOfYearCorrected < 0) then
-      -- week of last year - decide if 52 or 53
-      local lastYearBegin = os.time{year=os.date("*t",tm).year-1,month=1,day=1}
-      local lastYearEnd = os.time{year=os.date("*t",tm).year-1,month=12,day=31}
-      local dayAdd = getDayAdd(lastYearBegin)
-      local dayOfYear = dayOfYear + os.date("%j",lastYearEnd)
-      dayOfYearCorrected = dayOfYear + dayAdd
-    end  
+    local weekNumber = math.floor((dayOfYear + dayAdd) / 7) + 1
+    return weekNumber
+end
 
-    local weekNum = math.floor((dayOfYearCorrected) / 7) + 1
-    if( (dayOfYearCorrected > 0) and weekNum == 53) then
-      -- check if it is not considered as part of week 1 of next year
-      local nextYearBegin = os.time{year=os.date("*t",tm).year+1,month=1,day=1}
-      local yearBeginDayOfWeek = getYearBeginDayOfWeek(nextYearBegin)
-      if(yearBeginDayOfWeek < 5 ) then
-        weekNum = 1
-      end  
-    end  
-    return weekNum
+local function getCycleAndWeek(tm)
+    local weekNumber = getWeekNumberOfYear(tm)
+
+    -- Each quarter has 13 weeks: 6 (C1) + 6 (C2) + 1 (Wiggle)
+    local quarter = math.floor((weekNumber - 1) / 13) + 1
+    local weekInQuarter = ((weekNumber - 1) % 13) + 1
+
+    -- Handle week 53 (rare year with 53 weeks)
+    if quarter > 4 then
+        quarter = 4
+        weekInQuarter = 13
+    end
+
+    if weekInQuarter <= 6 then
+        -- First cycle (C1)
+        return string.format("Q%dC1W%d (w%d)", quarter, weekInQuarter, weekNumber)
+    elseif weekInQuarter <= 12 then
+        -- Second cycle (C2)
+        local weekInC2 = weekInQuarter - 6
+        return string.format("Q%dC2W%d (w%d)", quarter, weekInC2, weekNumber)
+    else
+        -- Wiggle week (week 13 of quarter)
+        return string.format("Q%dC2WW (w%d)", quarter, weekNumber)
+    end
 end  
 
 local function reload()
-    obj.menubar:setTitle("w"..tostring(getWeekNumberOfYear(os.time())))
+    obj.menubar:setTitle(getCycleAndWeek(os.time()))
 end
 
 function obj:init()
     self.menubar = hs.menubar.new()
-end
+  end
 
 function obj:start()
     reload()
     obj.timer = hs.timer.doEvery(60 * 60, reload)
 end
-
+  
 function obj:stop()
     if obj.timer then
         obj.timer.stop()
