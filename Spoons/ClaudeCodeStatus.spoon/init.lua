@@ -20,53 +20,52 @@ local function makeIcon(size, drawFn)
   return img:template(true)
 end
 
--- Thought bubble icon
-local function drawBubble(canvas, size, showDots)
-  local black = { black = 1 }
-  -- Main bubble (rounded rect)
-  canvas:appendElements({
-    type = "rectangle",
-    frame = { x = size * 0.1, y = size * 0.02, w = size * 0.82, h = size * 0.62 },
-    roundedRectRadii = { xRadius = size * 0.18, yRadius = size * 0.18 },
-    fillColor = black,
-    action = "fill",
-  })
-  -- Tail circles
-  canvas:appendElements({
-    type = "circle",
-    center = { x = size * 0.25, y = size * 0.72 },
-    radius = size * 0.07,
-    fillColor = black,
-    action = "fill",
-  })
-  canvas:appendElements({
-    type = "circle",
-    center = { x = size * 0.14, y = size * 0.84 },
-    radius = size * 0.045,
-    fillColor = black,
-    action = "fill",
-  })
-  -- Dots inside bubble
-  if showDots then
-    local dotR = size * 0.045
-    local dotY = size * 0.33
-    for _, dx in ipairs({ 0.3, 0.5, 0.7 }) do
-      canvas:appendElements({
-        type = "circle",
-        center = { x = size * dx, y = dotY },
-        radius = dotR,
-        fillColor = { white = 1 },
-        action = "fill",
-      })
-    end
+-- Sparkle/star icon - Claude-inspired
+local function drawSparkle(canvas, size)
+  -- Four-pointed star
+  local cx, cy = size / 2, size / 2
+  local outer = size * 0.45
+  local inner = size * 0.12
+  local points = {}
+  for i = 0, 7 do
+    local angle = (i * math.pi / 4) - (math.pi / 2)
+    local r = (i % 2 == 0) and outer or inner
+    table.insert(points, { x = cx + r * math.cos(angle), y = cy + r * math.sin(angle) })
   end
+  canvas:appendElements({
+    type = "segments",
+    coordinates = points,
+    closed = true,
+    fillColor = { black = 1 },
+    action = "fill",
+  })
+end
+
+-- Smaller sparkle for animation frame 2
+local function drawSparkleSmall(canvas, size)
+  local cx, cy = size / 2, size / 2
+  local outer = size * 0.3
+  local inner = size * 0.08
+  local points = {}
+  for i = 0, 7 do
+    local angle = (i * math.pi / 4) - (math.pi / 2)
+    local r = (i % 2 == 0) and outer or inner
+    table.insert(points, { x = cx + r * math.cos(angle), y = cy + r * math.sin(angle) })
+  end
+  canvas:appendElements({
+    type = "segments",
+    coordinates = points,
+    closed = true,
+    fillColor = { black = 1 },
+    action = "fill",
+  })
 end
 
 local iconSize = 18
-local idleIcon = makeIcon(iconSize, function(c, s) drawBubble(c, s, false) end)
+local idleIcon = makeIcon(iconSize, drawSparkle)
 local busyIcons = {
-  makeIcon(iconSize, function(c, s) drawBubble(c, s, true) end),
-  makeIcon(iconSize, function(c, s) drawBubble(c, s, false) end),
+  makeIcon(iconSize, drawSparkle),
+  makeIcon(iconSize, drawSparkleSmall),
 }
 
 -- Internal state
