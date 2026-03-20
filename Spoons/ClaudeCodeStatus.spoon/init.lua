@@ -10,8 +10,63 @@ obj.license = "MIT - https://opensource.org/licenses/MIT"
 -- Configuration
 obj.pollInterval = 10
 obj.animationInterval = 1
-obj.idleEmoji = "💤"
-obj.busyEmojis = {"🤔", "💡"}
+
+-- Menu bar icons (template images, auto-adapt to light/dark mode)
+local function makeIcon(size, drawFn)
+  local canvas = hs.canvas.new({ x = 0, y = 0, w = size, h = size })
+  drawFn(canvas, size)
+  local img = canvas:imageFromCanvas()
+  canvas:delete()
+  return img:template(true)
+end
+
+-- Sparkle/star icon - Claude-inspired
+local function drawSparkle(canvas, size)
+  -- Four-pointed star
+  local cx, cy = size / 2, size / 2
+  local outer = size * 0.45
+  local inner = size * 0.12
+  local points = {}
+  for i = 0, 7 do
+    local angle = (i * math.pi / 4) - (math.pi / 2)
+    local r = (i % 2 == 0) and outer or inner
+    table.insert(points, { x = cx + r * math.cos(angle), y = cy + r * math.sin(angle) })
+  end
+  canvas:appendElements({
+    type = "segments",
+    coordinates = points,
+    closed = true,
+    fillColor = { black = 1 },
+    action = "fill",
+  })
+end
+
+-- Smaller sparkle for animation frame 2
+local function drawSparkleSmall(canvas, size)
+  local cx, cy = size / 2, size / 2
+  local outer = size * 0.3
+  local inner = size * 0.08
+  local points = {}
+  for i = 0, 7 do
+    local angle = (i * math.pi / 4) - (math.pi / 2)
+    local r = (i % 2 == 0) and outer or inner
+    table.insert(points, { x = cx + r * math.cos(angle), y = cy + r * math.sin(angle) })
+  end
+  canvas:appendElements({
+    type = "segments",
+    coordinates = points,
+    closed = true,
+    fillColor = { black = 1 },
+    action = "fill",
+  })
+end
+
+local iconSize = 18
+local idleIcon = makeIcon(iconSize, drawSparkle)
+local busyIcons = {
+  makeIcon(iconSize, drawSparkle),
+  makeIcon(iconSize, drawSparkleSmall),
+}
 
 -- Internal state
 obj.menubar = nil
@@ -183,19 +238,22 @@ function obj:updateIcon()
   elseif not anyBusy and self.anyBusy then
     self.anyBusy = false
     self:stopAnimation()
-    self.menubar:setTitle(self.idleEmoji)
+    self.menubar:setTitle("")
+    self.menubar:setIcon(idleIcon)
   elseif not anyBusy then
-    self.menubar:setTitle(self.idleEmoji)
+    self.menubar:setTitle("")
+    self.menubar:setIcon(idleIcon)
   end
 end
 
 function obj:startAnimation()
   self:stopAnimation()
   self.animationFrame = 1
-  self.menubar:setTitle(self.busyEmojis[1])
+  self.menubar:setTitle("")
+  self.menubar:setIcon(busyIcons[1])
   self.animationTimer = hs.timer.doEvery(self.animationInterval, function()
-    self.animationFrame = (self.animationFrame % #self.busyEmojis) + 1
-    self.menubar:setTitle(self.busyEmojis[self.animationFrame])
+    self.animationFrame = (self.animationFrame % #busyIcons) + 1
+    self.menubar:setIcon(busyIcons[self.animationFrame])
   end)
 end
 
