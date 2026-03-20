@@ -192,7 +192,7 @@ local function scanSessions()
             status = "Running command"
           elseif comm:match("^git") then
             status = "Running git"
-          elseif comm:match("^node") then
+          elseif comm:match("^node") or comm:match("^claude") then
             status = "Thinking..."
           else
             status = "Working..."
