@@ -124,14 +124,14 @@ function obj:renderCollapsed(sessionCount, hasBusy)
     },
     {  -- Status dot
       type = "circle",
-      center = { x = 18, y = h / 2 + 4 },
+      center = { x = 18, y = h / 2 + 1 },
       radius = 3.5,
       fillColor = dotColor,
       action = "fill",
     },
     {  -- Session count
       type = "text",
-      frame = { x = 26, y = (h - 14) / 2 + 3, w = w - 26, h = 14 },
+      frame = { x = 26, y = (h - 14) / 2 + 1, w = w - 26, h = 14 },
       text = hs.styledtext.new(tostring(sessionCount), {
         font = { name = "Menlo", size = 11 },
         color = { red = 0.53, green = 0.53, blue = 0.53, alpha = 1 },
@@ -274,10 +274,10 @@ function obj:renderExpanded(busySessions)
     else
       dotColor = { red = 0.29, green = 0.87, blue = 0.5, alpha = 1 }
     end
-    local textY = y + (self.rowHeight - 15) / 2 + 3
+    local textY = y + (self.rowHeight - 15) / 2 + 1
     table.insert(elements, {
       type = "circle",
-      center = { x = 18, y = y + self.rowHeight / 2 + 4 },
+      center = { x = 18, y = y + self.rowHeight / 2 + 1 },
       radius = 3.5,
       fillColor = dotColor,
       action = "fill",
