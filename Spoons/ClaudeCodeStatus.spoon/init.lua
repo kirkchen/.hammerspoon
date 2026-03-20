@@ -21,9 +21,14 @@ obj.animationFrame = 1
 obj.sessions = {}
 obj.allBusy = false
 
--- Resolve tmux path once at load time (Hammerspoon GUI apps lack /opt/homebrew/bin in PATH)
-local tmuxPath = hs.execute("which tmux 2>/dev/null", true):gsub("%s+$", "")
-if tmuxPath == "" then tmuxPath = "/opt/homebrew/bin/tmux" end
+-- Resolve tmux path (Hammerspoon GUI apps lack /opt/homebrew/bin in PATH)
+local tmuxPath
+for _, p in ipairs({"/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"}) do
+  if hs.fs.attributes(p) then
+    tmuxPath = p
+    break
+  end
+end
 
 local function scanSessions()
   local sessions = {}
@@ -57,6 +62,7 @@ local function scanSessions()
   end
 
   -- Step 3: Get tmux pane mapping
+  if not tmuxPath then return sessions end
   local tmuxOut = hs.execute(tmuxPath .. " list-panes -a -F '#{pane_pid} #{session_name} #{window_index} #{pane_index}' 2>/dev/null")
   local panePids = {}
   if tmuxOut then
