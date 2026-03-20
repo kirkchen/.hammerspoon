@@ -200,30 +200,57 @@ local function scanSessions()
         end
       end
 
-      -- If no tool child, check transcript mtime to detect "thinking" (API call)
-      if not isBusy then
-        local encodedCwd = sd.cwd:gsub("[/.]", "-")
-        local projectDir = homeDir .. "/.claude/projects/" .. encodedCwd
-        local newestOut = hs.execute("ls -t '" .. projectDir .. "/'*.jsonl 2>/dev/null | head -1")
-        if newestOut and newestOut ~= "" then
-          local newestFile = newestOut:gsub("\n", "")
-          local attr = hs.fs.attributes(newestFile)
-          if attr and attr.modification and (now - attr.modification) < 30 then
-            isBusy = true
-            status = "Thinking..."
-          end
-        end
-      end
-
       table.insert(sessions, {
         pid = pid,
         project = projectName,
         busy = isBusy,
         status = status,
-        tmux = tmuxInfo
+        tmux = tmuxInfo,
+        cwd = sd.cwd
       })
     end
   end
+
+  -- Step 5: Batch-check transcript mtime for idle sessions to detect "thinking"
+  local idleDirs = {}
+  local idleSessionsByDir = {}
+  for i, s in ipairs(sessions) do
+    if not s.busy then
+      local encodedCwd = s.cwd:gsub("[/.]", "-")
+      local dir = homeDir .. "/.claude/projects/" .. encodedCwd
+      if not idleSessionsByDir[dir] then
+        idleSessionsByDir[dir] = {}
+        table.insert(idleDirs, dir)
+      end
+      table.insert(idleSessionsByDir[dir], i)
+    end
+  end
+
+  if #idleDirs > 0 then
+    -- Single shell call: for each dir, find newest .jsonl mtime
+    local parts = {}
+    for _, dir in ipairs(idleDirs) do
+      table.insert(parts, "f=$(ls -t '" .. dir .. "/'*.jsonl 2>/dev/null | head -1);"
+        .. "[ -n \"$f\" ] && echo '" .. dir .. " '$(stat -f '%m' \"$f\" 2>/dev/null)")
+    end
+    local batchOut = hs.execute(table.concat(parts, ";") .. " 2>/dev/null")
+    if batchOut then
+      for dir, mtime in batchOut:gmatch("(%S+)%s+(%d+)") do
+        if (now - tonumber(mtime)) < 30 then
+          local indices = idleSessionsByDir[dir]
+          if indices then
+            for _, i in ipairs(indices) do
+              sessions[i].busy = true
+              sessions[i].status = "Thinking..."
+            end
+          end
+        end
+      end
+    end
+  end
+
+  -- Remove internal cwd field from session data
+  for _, s in ipairs(sessions) do s.cwd = nil end
 
   return sessions
 end
