@@ -202,7 +202,11 @@ function obj:animateTo(targetFrame, callback)
 end
 
 function obj:showCollapsed(sessionCount, busyCount)
-  self:stopPulse()
+  if busyCount == 0 then
+    self:stopPulse()
+  else
+    self:startPulse()
+  end
 
   local w, h = self:renderCollapsed(sessionCount, busyCount)
   local pos = self:getPosition(w)
@@ -229,7 +233,11 @@ end
 
 function obj:snapCollapsed(sessionCount, busyCount)
   if self.animTimer then self.animTimer:stop(); self.animTimer = nil end
-  self:stopPulse()
+  if busyCount == 0 then
+    self:stopPulse()
+  else
+    self:startPulse()
+  end
   local w, h = self:renderCollapsed(sessionCount, busyCount)
   local pos = self:getPosition(w)
   self.canvas:frame({ x = pos.x, y = pos.y, w = w, h = h })
@@ -335,9 +343,11 @@ function obj:startPulse()
   self.pulseTimer = hs.timer.doEvery(0.05, function()
     -- Sine wave: period 2s, range 0.4 to 1.0
     self.pulseAlpha = 0.7 + 0.3 * math.cos(hs.timer.secondsSinceEpoch() * math.pi)
-    -- Re-render to update dot alpha (only if expanded)
     if self.state == "expanded" and #self.busySessions > 0 then
       self:renderExpanded(self.busySessions)
+    elseif self.state == "collapsed" and #self.busySessions > 0 then
+      -- Update dot alpha directly (element 2) to avoid replaceElements flicker
+      self.canvas[2].fillColor = { red = 0.98, green = 0.8, blue = 0.08, alpha = self.pulseAlpha }
     end
   end)
 end
