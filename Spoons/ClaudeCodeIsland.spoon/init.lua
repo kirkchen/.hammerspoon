@@ -27,6 +27,7 @@ obj.animTimer = nil      -- frame animation timer
 obj.pulseTimer = nil     -- dot pulse timer
 obj.pulseAlpha = 1.0     -- current pulse opacity
 obj.screenWatcher = nil
+obj.hovered = false
 obj.dragging = false
 obj.dragStart = { x = 0, y = 0 }
 obj.dragOffset = { x = 0, y = 0 }
@@ -93,12 +94,14 @@ function obj:init()
       end
       self.dragging = false
     elseif msg == "mouseEnter" then
+      self.hovered = true
       if #self.busySessions > 0 and self.state == "collapsed" then
-        self:showExpanded(self.busySessions)
+        self:snapExpanded(self.busySessions)
       end
     elseif msg == "mouseExit" then
+      self.hovered = false
       if self.state == "expanded" and not self.dragging then
-        self:showCollapsed(#self.lastSessions, #self.busySessions > 0)
+        self:snapCollapsed(#self.lastSessions, #self.busySessions > 0)
       end
     end
   end)
@@ -212,6 +215,26 @@ function obj:showCollapsed(sessionCount, hasBusy)
   else
     self:animateTo(targetFrame)
   end
+  self.state = "collapsed"
+end
+
+function obj:snapExpanded(busySessions)
+  if self.animTimer then self.animTimer:stop(); self.animTimer = nil end
+  local w, h = self:renderExpanded(busySessions)
+  local pos = self:getPosition(w)
+  self.canvas:frame({ x = pos.x, y = pos.y, w = w, h = h })
+  self.canvas:show()
+  self.state = "expanded"
+  self:startPulse()
+end
+
+function obj:snapCollapsed(sessionCount, hasBusy)
+  if self.animTimer then self.animTimer:stop(); self.animTimer = nil end
+  self:stopPulse()
+  local w, h = self:renderCollapsed(sessionCount, hasBusy)
+  local pos = self:getPosition(w)
+  self.canvas:frame({ x = pos.x, y = pos.y, w = w, h = h })
+  self.canvas:show()
   self.state = "collapsed"
 end
 
