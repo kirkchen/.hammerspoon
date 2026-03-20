@@ -102,31 +102,38 @@ local function scanSessions()
       end
     end
 
-    -- Check busy state and identify what it's doing
-    local childOut = hs.execute("pgrep -P " .. pid .. " 2>/dev/null")
-    local isBusy = childOut ~= nil and childOut ~= ""
+    -- Check busy state by looking for tool child processes (not MCP servers)
+    local childPids = hs.execute("pgrep -P " .. pid .. " 2>/dev/null")
+    local isBusy = false
     local status = "Waiting for input"
-    if isBusy then
-      -- Identify child process to determine activity
-      local firstChild = childOut:match("(%d+)")
-      if firstChild then
-        local childCmd = hs.execute("ps -p " .. firstChild .. " -o comm= 2>/dev/null")
-        if childCmd then
-          childCmd = childCmd:gsub("%s+$", "")
-          if childCmd:match("bash") or childCmd:match("zsh") or childCmd:match("sh$") then
-            status = "Running command"
-          elseif childCmd:match("node") then
-            status = "Thinking..."
-          elseif childCmd:match("git") then
-            status = "Running git"
-          else
-            status = "Working..."
+    if childPids and childPids ~= "" then
+      -- Get commands of all children in one ps call
+      local pids = childPids:gsub("\n", ","):gsub(",$", "")
+      local childInfo = hs.execute("ps -p " .. pids .. " -o pid=,command= 2>/dev/null")
+      if childInfo then
+        for line in childInfo:gmatch("[^\n]+") do
+          local cmd = line:match("^%s*%d+%s+(.+)")
+          if cmd then
+            -- Skip MCP servers (long-lived background children)
+            local isMcp = cmd:match("mcp%-server") or cmd:match("@modelcontextprotocol")
+              or cmd:match("context7") or cmd:match("npx ")
+            if not isMcp then
+              isBusy = true
+              cmd = cmd:gsub("%s+$", "")
+              local comm = cmd:match("([^/]+)$") or cmd
+              if comm:match("^bash") or comm:match("^zsh") or comm:match("^sh$") or comm:match("^sh ") then
+                status = "Running command"
+              elseif comm:match("^git") then
+                status = "Running git"
+              elseif comm:match("^node") then
+                status = "Thinking..."
+              else
+                status = "Working..."
+              end
+              break
+            end
           end
-        else
-          status = "Working..."
         end
-      else
-        status = "Working..."
       end
     end
 
