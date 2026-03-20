@@ -25,7 +25,7 @@ local function scanSessions()
   local sessions = {}
 
   -- Step 1: Find Claude CLI PIDs
-  local pgrepOut = hs.execute("pgrep -af claude 2>/dev/null")
+  local pgrepOut = hs.execute("pgrep -af '[/ ]claude( |$)' 2>/dev/null")
   if not pgrepOut or pgrepOut == "" then return sessions end
 
   local claudePids = {}
@@ -150,6 +150,7 @@ function obj:updateIcon()
 end
 
 function obj:startAnimation()
+  self:stopAnimation()
   self.animationFrame = 1
   self.menubar:setTitle(self.busyEmojis[1])
   self.animationTimer = hs.timer.doEvery(self.animationInterval, function()
@@ -217,7 +218,9 @@ function obj:switchToSession(session)
   if clientOut then
     local client = clientOut:match("[^\n]+")
     if client then
-      hs.execute("tmux switch-client -c '" .. client .. "' -t '" .. target .. "' 2>/dev/null")
+      local safeClient = client:gsub("'", "'\\''")
+      local safeTarget = target:gsub("'", "'\\''")
+      hs.execute("tmux switch-client -c '" .. safeClient .. "' -t '" .. safeTarget .. "' 2>/dev/null")
     end
   end
 
