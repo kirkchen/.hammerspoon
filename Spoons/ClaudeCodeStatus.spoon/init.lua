@@ -87,31 +87,53 @@ end
 
 local function scanSessions()
   local sessions = {}
+  local homeDir = os.getenv("HOME")
 
-  -- Step 1: Find Claude CLI PIDs
-  local pgrepOut = hs.execute("pgrep -fl claude 2>/dev/null")
-  if not pgrepOut or pgrepOut == "" then return sessions end
+  -- Step 1: Read session files from ~/.claude/sessions/
+  local sessionsDir = homeDir .. "/.claude/sessions"
+  local sessionData = {}
+  local allPids = {}
 
-  local claudePids = {}
-  for line in pgrepOut:gmatch("[^\n]+") do
-    local pid, cmd = line:match("^(%d+)%s+(.+)")
-    if pid and cmd and (cmd:match("/claude") or cmd:match("^claude"))
-       and not cmd:match("ShipIt") and not cmd:match("Claude%.app")
-       and not cmd:match("claude%-desktop") then
-      table.insert(claudePids, tonumber(pid))
+  local iter, dirObj = hs.fs.dir(sessionsDir)
+  if not iter then return sessions end
+
+  for filename in iter, dirObj do
+    local pidStr = filename:match("^(%d+)%.json$")
+    if pidStr then
+      local pid = tonumber(pidStr)
+      local f = io.open(sessionsDir .. "/" .. filename, "r")
+      if f then
+        local content = f:read("*a")
+        f:close()
+        local ok, data = pcall(hs.json.decode, content)
+        if ok and data then
+          table.insert(sessionData, {
+            pid = pid,
+            cwd = data.cwd or "",
+          })
+          table.insert(allPids, pid)
+        end
+      end
     end
   end
 
-  if #claudePids == 0 then return sessions end
+  if #sessionData == 0 then return sessions end
 
-  -- Step 2: Build process tree (single ps call)
-  local psOut = hs.execute("ps -eo pid,ppid 2>/dev/null")
+  -- Step 2: Single ps call for alive check, process tree, AND child commands
+  local psOut = hs.execute("ps -eo pid,ppid,command 2>/dev/null")
+  local alivePids = {}
   local parentOf = {}
+  local childrenOf = {} -- pid -> list of command strings
   if psOut then
     for line in psOut:gmatch("[^\n]+") do
-      local p, pp = line:match("(%d+)%s+(%d+)")
-      if p and pp then
-        parentOf[tonumber(p)] = tonumber(pp)
+      local p, pp, cmd = line:match("^%s*(%d+)%s+(%d+)%s+(.+)")
+      if p and pp and cmd then
+        p = tonumber(p)
+        pp = tonumber(pp)
+        alivePids[p] = true
+        parentOf[p] = pp
+        if not childrenOf[pp] then childrenOf[pp] = {} end
+        table.insert(childrenOf[pp], cmd)
       end
     end
   end
@@ -133,72 +155,74 @@ local function scanSessions()
     end
   end
 
-  -- Step 4-6: For each Claude PID, resolve tmux location, CWD, and busy state
-  for _, pid in ipairs(claudePids) do
-    -- Walk process tree to find tmux pane
-    local tmuxInfo = nil
-    local cur = parentOf[pid]
-    for _ = 1, 20 do
-      if not cur or cur <= 1 then break end
-      if panePids[cur] then
-        tmuxInfo = panePids[cur]
-        break
-      end
-      cur = parentOf[cur]
-    end
+  -- Step 4: For each alive session, resolve tmux location and busy state
+  local now = os.time()
+  for _, sd in ipairs(sessionData) do
+    if alivePids[sd.pid] then
+      local pid = sd.pid
+      local projectName = sd.cwd:match("([^/]+)$") or "unknown"
 
-    -- Get CWD
-    local projectName = "unknown"
-    local lsofOut = hs.execute("lsof -a -d cwd -p " .. pid .. " -Fn 2>/dev/null")
-    if lsofOut then
-      local cwd = lsofOut:match("\nn(/[^\n]+)")
-      if cwd then
-        projectName = cwd:match("([^/]+)$") or cwd
+      -- Walk process tree to find tmux pane
+      local tmuxInfo = nil
+      local cur = parentOf[pid]
+      for _ = 1, 20 do
+        if not cur or cur <= 1 then break end
+        if panePids[cur] then
+          tmuxInfo = panePids[cur]
+          break
+        end
+        cur = parentOf[cur]
       end
-    end
 
-    -- Check busy state by looking for tool child processes (not MCP servers)
-    local childPids = hs.execute("pgrep -P " .. pid .. " 2>/dev/null")
-    local isBusy = false
-    local status = "Waiting for input"
-    if childPids and childPids ~= "" then
-      -- Get commands of all children in one ps call
-      local pids = childPids:gsub("\n", ","):gsub(",$", "")
-      local childInfo = hs.execute("ps -p " .. pids .. " -o pid=,command= 2>/dev/null")
-      if childInfo then
-        for line in childInfo:gmatch("[^\n]+") do
-          local cmd = line:match("^%s*%d+%s+(.+)")
-          if cmd then
-            -- Skip MCP servers (long-lived background children)
-            local isMcp = cmd:match("mcp%-server") or cmd:match("@modelcontextprotocol")
-              or cmd:match("context7") or cmd:match("npx ")
-            if not isMcp then
-              isBusy = true
-              cmd = cmd:gsub("%s+$", "")
-              local comm = cmd:match("([^/]+)$") or cmd
-              if comm:match("^bash") or comm:match("^zsh") or comm:match("^sh$") or comm:match("^sh ") then
-                status = "Running command"
-              elseif comm:match("^git") then
-                status = "Running git"
-              elseif comm:match("^node") then
-                status = "Thinking..."
-              else
-                status = "Working..."
-              end
-              break
-            end
+      -- Check busy state from pre-built children map
+      local isBusy = false
+      local status = "Waiting for input"
+      local children = childrenOf[pid] or {}
+      for _, cmd in ipairs(children) do
+        -- Skip long-lived background children (MCP servers, caffeinate, etc.)
+        local isBackground = cmd:match("mcp%-server") or cmd:match("@modelcontextprotocol")
+          or cmd:match("context7") or cmd:match("npx ") or cmd:match("mcp%-")
+          or cmd:match("caffeinate")
+        if not isBackground then
+          isBusy = true
+          cmd = cmd:gsub("%s+$", "")
+          local comm = cmd:match("([^/]+)$") or cmd
+          if comm:match("^bash") or comm:match("^zsh") or comm:match("^sh$") or comm:match("^sh ") then
+            status = "Running command"
+          elseif comm:match("^git") then
+            status = "Running git"
+          elseif comm:match("^node") then
+            status = "Thinking..."
+          else
+            status = "Working..."
+          end
+          break
+        end
+      end
+
+      -- If no tool child, check transcript mtime to detect "thinking" (API call)
+      if not isBusy then
+        local encodedCwd = sd.cwd:gsub("[/.]", "-")
+        local projectDir = homeDir .. "/.claude/projects/" .. encodedCwd
+        local newestOut = hs.execute("ls -t '" .. projectDir .. "/'*.jsonl 2>/dev/null | head -1")
+        if newestOut and newestOut ~= "" then
+          local newestFile = newestOut:gsub("\n", "")
+          local attr = hs.fs.attributes(newestFile)
+          if attr and attr.modification and (now - attr.modification) < 30 then
+            isBusy = true
+            status = "Thinking..."
           end
         end
       end
-    end
 
-    table.insert(sessions, {
-      pid = pid,
-      project = projectName,
-      busy = isBusy,
-      status = status,
-      tmux = tmuxInfo
-    })
+      table.insert(sessions, {
+        pid = pid,
+        project = projectName,
+        busy = isBusy,
+        status = status,
+        tmux = tmuxInfo
+      })
+    end
   end
 
   return sessions
