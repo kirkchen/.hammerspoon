@@ -75,6 +75,7 @@ obj.animationTimer = nil
 obj.animationFrame = 1
 obj.sessions = {}
 obj.anyBusy = false
+obj.onRefresh = nil  -- callback function(sessions), called after each scan
 
 -- Resolve tmux path (Hammerspoon GUI apps lack /opt/homebrew/bin in PATH)
 local tmuxPath
@@ -263,6 +264,7 @@ end
 function obj:refresh()
   self.sessions = scanSessions()
   self:updateIcon()
+  if self.onRefresh then self.onRefresh(self.sessions) end
 end
 
 function obj:updateIcon()
