@@ -16,7 +16,6 @@ obj.rowHeight = 28
 obj.paddingY = 12
 obj.cornerRadius = 18
 obj.bgColor = { red = 0.1, green = 0.1, blue = 0.1, alpha = 0.95 }
-obj.collapseDelay = 2
 
 -- Internal state
 obj.canvas = nil
@@ -27,7 +26,6 @@ obj.lastSessions = {}    -- all sessions from last update
 obj.animTimer = nil      -- frame animation timer
 obj.pulseTimer = nil     -- dot pulse timer
 obj.pulseAlpha = 1.0     -- current pulse opacity
-obj.collapseTimer = nil  -- debounce timer for collapse
 obj.screenWatcher = nil
 obj.dragging = false
 obj.dragStart = { x = 0, y = 0 }
@@ -94,13 +92,27 @@ function obj:init()
         end
       end
       self.dragging = false
+    elseif msg == "mouseEnter" then
+      if #self.busySessions > 0 and self.state == "collapsed" then
+        self:showExpanded(self.busySessions)
+      end
+    elseif msg == "mouseExit" then
+      if self.state == "expanded" and not self.dragging then
+        self:showCollapsed(#self.lastSessions, #self.busySessions > 0)
+      end
     end
   end)
 end
 
-function obj:renderCollapsed(sessionCount)
+function obj:renderCollapsed(sessionCount, hasBusy)
   local w = self.collapsedWidth
   local h = self.collapsedHeight
+  local dotColor
+  if hasBusy then
+    dotColor = { red = 0.29, green = 0.87, blue = 0.5, alpha = 1 }
+  else
+    dotColor = { red = 0.33, green = 0.33, blue = 0.33, alpha = 1 }
+  end
   local elements = {
     {  -- Background
       type = "rectangle",
@@ -109,11 +121,11 @@ function obj:renderCollapsed(sessionCount)
       fillColor = self.bgColor,
       action = "fill",
     },
-    {  -- Gray dot
+    {  -- Status dot
       type = "circle",
       center = { x = 20, y = h / 2 },
       radius = 3.5,
-      fillColor = { red = 0.33, green = 0.33, blue = 0.33, alpha = 1 },
+      fillColor = dotColor,
       action = "fill",
     },
     {  -- Session count
@@ -148,25 +160,16 @@ function obj:update(sessions)
   end
   self.busySessions = busy
 
-  if #busy == 0 then
-    -- Debounce collapse to prevent flicker
-    if self.state == "expanded" and not self.collapseTimer then
-      self.collapseTimer = hs.timer.doAfter(self.collapseDelay, function()
-        self.collapseTimer = nil
-        -- Re-check: still no busy sessions?
-        local stillBusy = false
-        for _, s in ipairs(self.lastSessions) do
-          if s.busy then stillBusy = true; break end
-        end
-        if not stillBusy then
-          self:showCollapsed(#self.lastSessions)
-        end
-      end)
-    elseif self.state ~= "expanded" then
-      self:showCollapsed(#sessions)
-    end
+  -- Always show collapsed pill; hover expands
+  if self.state ~= "expanded" then
+    self:showCollapsed(#sessions, #busy > 0)
   else
-    self:showExpanded(busy)
+    -- If hovering and expanded, update content in place
+    if #busy > 0 then
+      self:renderExpanded(busy)
+    else
+      self:showCollapsed(#sessions, false)
+    end
   end
 end
 
@@ -194,19 +197,14 @@ function obj:animateTo(targetFrame, callback)
   end)
 end
 
-function obj:showCollapsed(sessionCount)
-  if self.collapseTimer then
-    self.collapseTimer:stop()
-    self.collapseTimer = nil
-  end
+function obj:showCollapsed(sessionCount, hasBusy)
   self:stopPulse()
 
-  local w, h = self:renderCollapsed(sessionCount)
+  local w, h = self:renderCollapsed(sessionCount, hasBusy)
   local pos = self:getPosition(w)
   local targetFrame = { x = pos.x, y = pos.y, w = w, h = h }
 
   if self.state == "hidden" then
-    -- No animation on first show
     self.canvas:frame(targetFrame)
     self.canvas:show()
   else
@@ -292,11 +290,6 @@ function obj:renderExpanded(busySessions)
 end
 
 function obj:showExpanded(busySessions)
-  if self.collapseTimer then
-    self.collapseTimer:stop()
-    self.collapseTimer = nil
-  end
-
   local w, h = self:renderExpanded(busySessions)
   local pos = self:getPosition(w)
   local targetFrame = { x = pos.x, y = pos.y, w = w, h = h }
@@ -335,7 +328,6 @@ end
 function obj:stop()
   if self.animTimer then self.animTimer:stop(); self.animTimer = nil end
   if self.pulseTimer then self.pulseTimer:stop(); self.pulseTimer = nil end
-  if self.collapseTimer then self.collapseTimer:stop(); self.collapseTimer = nil end
   if self.screenWatcher then self.screenWatcher:stop(); self.screenWatcher = nil end
   if self.canvas then self.canvas:hide() end
   self.state = "hidden"
