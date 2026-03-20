@@ -60,6 +60,7 @@ function obj:init()
   self.canvas:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces
     + hs.canvas.windowBehaviors.stationary)
 
+  self.canvas:trackMouseEnterExit(true)
   self.canvas:canvasMouseEvents(true, true, false, true)
   self.canvas:mouseCallback(function(c, msg, id, x, y)
     if msg == "mouseDown" then
@@ -123,16 +124,16 @@ function obj:renderCollapsed(sessionCount, hasBusy)
     },
     {  -- Status dot
       type = "circle",
-      center = { x = 20, y = h / 2 },
+      center = { x = 18, y = h / 2 },
       radius = 3.5,
       fillColor = dotColor,
       action = "fill",
     },
     {  -- Session count
       type = "text",
-      frame = { x = 28, y = 0, w = w - 32, h = h },
+      frame = { x = 26, y = 0, w = w - 26, h = h },
       text = hs.styledtext.new(tostring(sessionCount), {
-        font = { name = "Menlo", size = 12 },
+        font = { name = "Menlo", size = 11 },
         color = { red = 0.53, green = 0.53, blue = 0.53, alpha = 1 },
         paragraphStyle = { alignment = "left", lineBreak = "clip",
           minimumLineHeight = h, maximumLineHeight = h },
