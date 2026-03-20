@@ -27,7 +27,6 @@ obj.animTimer = nil      -- frame animation timer
 obj.pulseTimer = nil     -- dot pulse timer
 obj.pulseAlpha = 1.0     -- current pulse opacity
 obj.screenWatcher = nil
-obj.hovered = false
 obj.dragging = false
 obj.dragStart = { x = 0, y = 0 }
 obj.dragOffset = { x = 0, y = 0 }
@@ -36,22 +35,16 @@ local DRAG_THRESHOLD = 3
 
 local function lerp(a, b, t) return a + (b - a) * t end
 
-function obj:getDefaultPosition()
+-- Position stores center-x (cx) and y, so expand/collapse stays centered
+function obj:getPosition(targetWidth)
+  if self.position then
+    return { x = self.position.cx - targetWidth / 2, y = self.position.y }
+  end
   local screen = hs.screen.mainScreen():frame()
   return {
-    x = screen.x + (screen.w - self.collapsedWidth) / 2,
+    x = screen.x + (screen.w - targetWidth) / 2,
     y = screen.y + self.margin
   }
-end
-
-function obj:getPosition(width)
-  local pos = self.position or self:getDefaultPosition()
-  -- When width changes, keep centered on same x-center
-  if width then
-    local currentWidth = self.canvas and self.canvas:frame().w or self.collapsedWidth
-    pos = { x = pos.x - (width - currentWidth) / 2, y = pos.y }
-  end
-  return pos
 end
 
 function obj:init()
@@ -84,7 +77,7 @@ function obj:init()
     elseif msg == "mouseUp" then
       if self.dragging then
         local f = c:frame()
-        self.position = { x = f.x, y = f.y }
+        self.position = { cx = f.x + f.w / 2, y = f.y }
         hs.settings.set("ClaudeCodeIsland.position", self.position)
       elseif id and type(id) == "string" and id:match("^row%-") then
         local idx = tonumber(id:match("row%-(%d+)"))
@@ -94,13 +87,16 @@ function obj:init()
       end
       self.dragging = false
     elseif msg == "mouseEnter" then
-      self.hovered = true
       if #self.busySessions > 0 and self.state == "collapsed" then
         self:snapExpanded(self.busySessions)
       end
     elseif msg == "mouseExit" then
-      self.hovered = false
-      if self.state == "expanded" and not self.dragging then
+      -- Verify mouse is actually outside (replaceElements triggers spurious exits)
+      local mouse = hs.mouse.absolutePosition()
+      local f = c:frame()
+      local inside = mouse.x >= f.x and mouse.x <= f.x + f.w
+                 and mouse.y >= f.y and mouse.y <= f.y + f.h
+      if not inside and self.state == "expanded" and not self.dragging then
         self:snapCollapsed(#self.lastSessions, #self.busySessions > 0)
       end
     end
@@ -365,10 +361,9 @@ function obj:resetPosition()
   self.position = nil
   hs.settings.set("ClaudeCodeIsland.position", nil)
   if self.state ~= "hidden" then
-    local w = self.canvas:frame().w
-    local pos = self:getDefaultPosition()
-    pos.x = pos.x - (w - self.collapsedWidth) / 2
-    self.canvas:frame({ x = pos.x, y = pos.y, w = self.canvas:frame().w, h = self.canvas:frame().h })
+    local f = self.canvas:frame()
+    local pos = self:getPosition(f.w)
+    self.canvas:frame({ x = pos.x, y = pos.y, w = f.w, h = f.h })
   end
 end
 
@@ -376,9 +371,12 @@ function obj:clampPosition()
   if not self.position then return end
   local screen = hs.screen.mainScreen():frame()
   local f = self.canvas:frame()
-  self.position.x = math.max(screen.x, math.min(self.position.x, screen.x + screen.w - f.w))
+  local maxCx = screen.x + screen.w - f.w / 2
+  local minCx = screen.x + f.w / 2
+  self.position.cx = math.max(minCx, math.min(self.position.cx, maxCx))
   self.position.y = math.max(screen.y, math.min(self.position.y, screen.y + screen.h - f.h))
-  self.canvas:frame({ x = self.position.x, y = self.position.y, w = f.w, h = f.h })
+  local pos = self:getPosition(f.w)
+  self.canvas:frame({ x = pos.x, y = self.position.y, w = f.w, h = f.h })
   hs.settings.set("ClaudeCodeIsland.position", self.position)
 end
 
