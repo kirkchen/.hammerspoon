@@ -21,13 +21,114 @@ obj.animationFrame = 1
 obj.sessions = {}
 obj.allBusy = false
 
+local function scanSessions()
+  local sessions = {}
+
+  -- Step 1: Find Claude CLI PIDs
+  local pgrepOut = hs.execute("pgrep -af claude 2>/dev/null")
+  if not pgrepOut or pgrepOut == "" then return sessions end
+
+  local claudePids = {}
+  for line in pgrepOut:gmatch("[^\n]+") do
+    local pid, cmd = line:match("^(%d+)%s+(.+)")
+    if pid and cmd and (cmd:match("/claude") or cmd:match("^claude"))
+       and not cmd:match("ShipIt") and not cmd:match("Claude%.app")
+       and not cmd:match("claude%-desktop") then
+      table.insert(claudePids, tonumber(pid))
+    end
+  end
+
+  if #claudePids == 0 then return sessions end
+
+  -- Step 2: Build process tree (single ps call)
+  local psOut = hs.execute("ps -eo pid,ppid 2>/dev/null")
+  local parentOf = {}
+  if psOut then
+    for line in psOut:gmatch("[^\n]+") do
+      local p, pp = line:match("(%d+)%s+(%d+)")
+      if p and pp then
+        parentOf[tonumber(p)] = tonumber(pp)
+      end
+    end
+  end
+
+  -- Step 3: Get tmux pane mapping
+  local tmuxOut = hs.execute("tmux list-panes -a -F '#{pane_pid} #{session_name} #{window_index} #{pane_index}' 2>/dev/null")
+  local panePids = {}
+  if tmuxOut then
+    for line in tmuxOut:gmatch("[^\n]+") do
+      local panePid, sessName, winIdx, paneIdx = line:match("(%d+)%s+(%S+)%s+(%d+)%s+(%d+)")
+      if panePid then
+        panePids[tonumber(panePid)] = {
+          session = sessName,
+          window = tonumber(winIdx),
+          pane = tonumber(paneIdx)
+        }
+      end
+    end
+  end
+
+  -- Step 4-6: For each Claude PID, resolve tmux location, CWD, and busy state
+  for _, pid in ipairs(claudePids) do
+    -- Walk process tree to find tmux pane
+    local tmuxInfo = nil
+    local cur = parentOf[pid]
+    for _ = 1, 20 do
+      if not cur or cur <= 1 then break end
+      if panePids[cur] then
+        tmuxInfo = panePids[cur]
+        break
+      end
+      cur = parentOf[cur]
+    end
+
+    -- Get CWD
+    local projectName = "unknown"
+    local lsofOut = hs.execute("lsof -a -d cwd -p " .. pid .. " -Fn 2>/dev/null")
+    if lsofOut then
+      local cwd = lsofOut:match("\nn(/[^\n]+)")
+      if cwd then
+        projectName = cwd:match("([^/]+)$") or cwd
+      end
+    end
+
+    -- Check busy state (has child processes?)
+    local childOut = hs.execute("pgrep -P " .. pid .. " 2>/dev/null")
+    local isBusy = childOut ~= nil and childOut ~= ""
+
+    table.insert(sessions, {
+      pid = pid,
+      project = projectName,
+      busy = isBusy,
+      tmux = tmuxInfo
+    })
+  end
+
+  return sessions
+end
+
 function obj:init()
   self.menubar = hs.menubar.new()
   self.menubar:removeFromMenuBar()  -- Start hidden; first refresh() will show if needed
 end
 
+function obj:refresh()
+  self.sessions = scanSessions()
+  self:updateIcon()
+end
+
+function obj:updateIcon()
+  if #self.sessions == 0 then
+    self.menubar:removeFromMenuBar()
+    return
+  end
+  self.menubar:returnToMenuBar()
+  self.menubar:setTitle(self.idleEmoji)
+end
+
 function obj:start()
-  -- self:refresh()  -- Will be enabled in Task 2
+  self:refresh()
+  self.pollTimer = hs.timer.doEvery(self.pollInterval, function() self:refresh() end)
   return self
 end
 
