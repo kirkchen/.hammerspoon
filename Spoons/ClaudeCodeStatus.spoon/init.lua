@@ -165,9 +165,52 @@ function obj:stopAnimation()
   end
 end
 
+function obj:buildMenu()
+  local menuItems = {}
+
+  -- Header
+  table.insert(menuItems, {
+    title = "Claude Code Sessions (" .. #self.sessions .. ")",
+    disabled = true
+  })
+  table.insert(menuItems, { title = "-" }) -- separator
+
+  -- Session rows
+  for _, s in ipairs(self.sessions) do
+    local icon = s.busy and "◉" or "◯"
+    local tmuxLabel = ""
+    if s.tmux then
+      tmuxLabel = s.tmux.session .. ":" .. s.tmux.window
+    end
+
+    local title = icon .. "  " .. s.project
+    if tmuxLabel ~= "" then
+      -- Pad to align right column
+      local padding = string.rep(" ", math.max(1, 30 - #s.project))
+      title = title .. padding .. tmuxLabel
+    end
+
+    table.insert(menuItems, {
+      title = title,
+      fn = function() obj:switchToSession(s) end,
+      disabled = (s.tmux == nil)
+    })
+  end
+
+  -- Footer
+  table.insert(menuItems, { title = "-" })
+  table.insert(menuItems, {
+    title = "↻ Refresh",
+    fn = function() obj:refresh() end
+  })
+
+  return menuItems
+end
+
 function obj:start()
   self:refresh()
   self.pollTimer = hs.timer.doEvery(self.pollInterval, function() self:refresh() end)
+  self.menubar:setMenu(function() return self:buildMenu() end)
   return self
 end
 
