@@ -116,8 +116,7 @@ function obj:update(sessions)
   if #busy == 0 then
     self:showCollapsed(#sessions)
   else
-    -- TODO: expanded state (Task 3)
-    self:showCollapsed(#sessions)
+    self:showExpanded(busy)
   end
 end
 
@@ -140,6 +139,103 @@ function obj:stopPulse()
     self.pulseTimer:stop()
     self.pulseTimer = nil
   end
+end
+
+function obj:renderExpanded(busySessions)
+  local w = self.expandedWidth
+  local h = self.paddingY + #busySessions * self.rowHeight + self.paddingY
+  local elements = {
+    {  -- Background
+      type = "rectangle",
+      frame = { x = 0, y = 0, w = w, h = h },
+      roundedRectRadii = { xRadius = self.cornerRadius, yRadius = self.cornerRadius },
+      fillColor = self.bgColor,
+      action = "fill",
+    },
+  }
+
+  for i, s in ipairs(busySessions) do
+    local y = self.paddingY + (i - 1) * self.rowHeight
+
+    -- Hit-target rect (invisible, for click detection)
+    table.insert(elements, {
+      type = "rectangle",
+      id = "row-" .. i,
+      frame = { x = 0, y = y, w = w, h = self.rowHeight },
+      fillColor = { alpha = 0 },
+      action = "fill",
+    })
+
+    -- Status dot
+    local dotColor
+    if s.status == "Thinking..." then
+      dotColor = { red = 0.98, green = 0.8, blue = 0.08, alpha = self.pulseAlpha }
+    else
+      dotColor = { red = 0.29, green = 0.87, blue = 0.5, alpha = 1 }
+    end
+    table.insert(elements, {
+      type = "circle",
+      center = { x = 18, y = y + self.rowHeight / 2 },
+      radius = 3.5,
+      fillColor = dotColor,
+      action = "fill",
+    })
+
+    -- Project name
+    table.insert(elements, {
+      type = "text",
+      frame = { x = 28, y = y, w = 120, h = self.rowHeight },
+      text = hs.styledtext.new(s.project, {
+        font = { name = "Menlo", size = 12 },
+        color = { red = 0.9, green = 0.9, blue = 0.9, alpha = 1 },
+        paragraphStyle = { alignment = "left", lineBreak = "clip",
+          minimumLineHeight = self.rowHeight, maximumLineHeight = self.rowHeight },
+      }),
+    })
+
+    -- Status text
+    table.insert(elements, {
+      type = "text",
+      frame = { x = 148, y = y, w = w - 162, h = self.rowHeight },
+      text = hs.styledtext.new(s.status, {
+        font = { name = "Menlo", size = 11 },
+        color = { red = 0.6, green = 0.6, blue = 0.6, alpha = 1 },
+        paragraphStyle = { alignment = "right", lineBreak = "clip",
+          minimumLineHeight = self.rowHeight, maximumLineHeight = self.rowHeight },
+      }),
+    })
+  end
+
+  self.canvas:replaceElements(elements)
+  return w, h
+end
+
+function obj:showExpanded(busySessions)
+  -- Cancel pending collapse
+  if self.collapseTimer then
+    self.collapseTimer:stop()
+    self.collapseTimer = nil
+  end
+
+  local w, h = self:renderExpanded(busySessions)
+  local pos = self:getPosition(w)
+  self.canvas:frame({ x = pos.x, y = pos.y, w = w, h = h })
+  self.canvas:show()
+  self.state = "expanded"
+
+  self:startPulse()
+end
+
+function obj:startPulse()
+  if self.pulseTimer then return end  -- already running
+  self.pulseTimer = hs.timer.doEvery(0.05, function()
+    -- Sine wave: period 2s, range 0.4 to 1.0
+    self.pulseAlpha = 0.7 + 0.3 * math.cos(hs.timer.secondsSinceEpoch() * math.pi)
+    -- Re-render to update dot alpha (only if expanded)
+    if self.state == "expanded" and #self.busySessions > 0 then
+      self:renderExpanded(self.busySessions)
+    end
+  end)
 end
 
 function obj:start()
