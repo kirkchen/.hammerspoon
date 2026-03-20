@@ -60,8 +60,7 @@ function obj:init()
   self.canvas:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces
     + hs.canvas.windowBehaviors.stationary)
 
-  self.canvas:trackMouseEnterExit(true)
-  self.canvas:canvasMouseEvents(true, true, false, true)
+  self.canvas:canvasMouseEvents(true, true, true, true)
   self.canvas:mouseCallback(function(c, msg, id, x, y)
     if msg == "mouseDown" then
       self.dragStart = { x = x, y = y }
@@ -115,12 +114,14 @@ function obj:renderCollapsed(sessionCount, hasBusy)
     dotColor = { red = 0.33, green = 0.33, blue = 0.33, alpha = 1 }
   end
   local elements = {
-    {  -- Background
+    {  -- Background (trackMouseEnterExit for hover detection)
       type = "rectangle",
+      id = "bg",
       frame = { x = 0, y = 0, w = w, h = h },
       roundedRectRadii = { xRadius = h / 2, yRadius = h / 2 },
       fillColor = self.bgColor,
       action = "fill",
+      trackMouseEnterExit = true,
     },
     {  -- Status dot
       type = "circle",
@@ -227,10 +228,12 @@ function obj:renderExpanded(busySessions)
   local elements = {
     {  -- Background
       type = "rectangle",
+      id = "bg",
       frame = { x = 0, y = 0, w = w, h = h },
       roundedRectRadii = { xRadius = self.cornerRadius, yRadius = self.cornerRadius },
       fillColor = self.bgColor,
       action = "fill",
+      trackMouseEnterExit = true,
     },
   }
 
