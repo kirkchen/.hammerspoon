@@ -21,11 +21,15 @@ obj.animationFrame = 1
 obj.sessions = {}
 obj.allBusy = false
 
+-- Resolve tmux path once at load time (Hammerspoon GUI apps lack /opt/homebrew/bin in PATH)
+local tmuxPath = hs.execute("which tmux 2>/dev/null", true):gsub("%s+$", "")
+if tmuxPath == "" then tmuxPath = "/opt/homebrew/bin/tmux" end
+
 local function scanSessions()
   local sessions = {}
 
   -- Step 1: Find Claude CLI PIDs
-  local pgrepOut = hs.execute("pgrep -fl claude 2>/dev/null", true)
+  local pgrepOut = hs.execute("pgrep -fl claude 2>/dev/null")
   if not pgrepOut or pgrepOut == "" then return sessions end
 
   local claudePids = {}
@@ -41,7 +45,7 @@ local function scanSessions()
   if #claudePids == 0 then return sessions end
 
   -- Step 2: Build process tree (single ps call)
-  local psOut = hs.execute("ps -eo pid,ppid 2>/dev/null", true)
+  local psOut = hs.execute("ps -eo pid,ppid 2>/dev/null")
   local parentOf = {}
   if psOut then
     for line in psOut:gmatch("[^\n]+") do
@@ -53,7 +57,7 @@ local function scanSessions()
   end
 
   -- Step 3: Get tmux pane mapping
-  local tmuxOut = hs.execute("tmux list-panes -a -F '#{pane_pid} #{session_name} #{window_index} #{pane_index}' 2>/dev/null", true)
+  local tmuxOut = hs.execute(tmuxPath .. " list-panes -a -F '#{pane_pid} #{session_name} #{window_index} #{pane_index}' 2>/dev/null")
   local panePids = {}
   if tmuxOut then
     for line in tmuxOut:gmatch("[^\n]+") do
@@ -84,7 +88,7 @@ local function scanSessions()
 
     -- Get CWD
     local projectName = "unknown"
-    local lsofOut = hs.execute("lsof -a -d cwd -p " .. pid .. " -Fn 2>/dev/null", true)
+    local lsofOut = hs.execute("lsof -a -d cwd -p " .. pid .. " -Fn 2>/dev/null")
     if lsofOut then
       local cwd = lsofOut:match("\nn(/[^\n]+)")
       if cwd then
@@ -93,7 +97,7 @@ local function scanSessions()
     end
 
     -- Check busy state (has child processes?)
-    local childOut = hs.execute("pgrep -P " .. pid .. " 2>/dev/null", true)
+    local childOut = hs.execute("pgrep -P " .. pid .. " 2>/dev/null")
     local isBusy = childOut ~= nil and childOut ~= ""
 
     table.insert(sessions, {
@@ -214,13 +218,13 @@ function obj:switchToSession(session)
   local target = session.tmux.session .. ":" .. session.tmux.window
 
   -- Find the tmux client to switch
-  local clientOut = hs.execute("tmux list-clients -F '#{client_name}' 2>/dev/null", true)
+  local clientOut = hs.execute(tmuxPath .. " list-clients -F '#{client_name}' 2>/dev/null")
   if clientOut then
     local client = clientOut:match("[^\n]+")
     if client then
       local safeClient = client:gsub("'", "'\\''")
       local safeTarget = target:gsub("'", "'\\''")
-      hs.execute("tmux switch-client -c '" .. safeClient .. "' -t '" .. safeTarget .. "' 2>/dev/null", true)
+      hs.execute(tmuxPath .. " switch-client -c '" .. safeClient .. "' -t '" .. safeTarget .. "' 2>/dev/null")
     end
   end
 
