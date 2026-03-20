@@ -207,6 +207,24 @@ function obj:buildMenu()
   return menuItems
 end
 
+function obj:switchToSession(session)
+  if not session.tmux then return end
+
+  local target = session.tmux.session .. ":" .. session.tmux.window
+
+  -- Find the tmux client to switch
+  local clientOut = hs.execute("tmux list-clients -F '#{client_name}' 2>/dev/null")
+  if clientOut then
+    local client = clientOut:match("[^\n]+")
+    if client then
+      hs.execute("tmux switch-client -c '" .. client .. "' -t '" .. target .. "' 2>/dev/null")
+    end
+  end
+
+  -- Bring iTerm2 to foreground
+  hs.application.launchOrFocus("iTerm2")
+end
+
 function obj:start()
   self:refresh()
   self.pollTimer = hs.timer.doEvery(self.pollInterval, function() self:refresh() end)
