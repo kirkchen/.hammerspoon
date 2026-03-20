@@ -97,21 +97,25 @@ function obj:init()
       local inside = mouse.x >= f.x and mouse.x <= f.x + f.w
                  and mouse.y >= f.y and mouse.y <= f.y + f.h
       if not inside and self.state == "expanded" and not self.dragging then
-        self:snapCollapsed(#self.lastSessions, #self.busySessions > 0)
+        self:snapCollapsed(#self.lastSessions, #self.busySessions)
       end
     end
   end)
 end
 
-function obj:renderCollapsed(sessionCount, hasBusy)
-  local w = self.collapsedWidth
+function obj:renderCollapsed(sessionCount, busyCount)
   local h = self.collapsedHeight
   local dotColor
-  if hasBusy then
-    dotColor = { red = 0.29, green = 0.87, blue = 0.5, alpha = 1 }
+  local label
+  if busyCount > 0 then
+    dotColor = { red = 0.98, green = 0.8, blue = 0.08, alpha = 1 }
+    label = busyCount .. " / " .. sessionCount
   else
     dotColor = { red = 0.33, green = 0.33, blue = 0.33, alpha = 1 }
+    label = tostring(sessionCount)
   end
+  -- Dynamic width based on label length
+  local w = math.max(self.collapsedWidth, 26 + #label * 7 + 12)
   local elements = {
     {  -- Background (trackMouseEnterExit for hover detection)
       type = "rectangle",
@@ -132,7 +136,7 @@ function obj:renderCollapsed(sessionCount, hasBusy)
     {  -- Session count
       type = "text",
       frame = { x = 26, y = (h - 14) / 2 + 2, w = w - 26, h = 14 },
-      text = hs.styledtext.new(tostring(sessionCount), {
+      text = hs.styledtext.new(label, {
         font = { name = "Menlo", size = 11 },
         color = { red = 0.53, green = 0.53, blue = 0.53, alpha = 1 },
         paragraphStyle = { alignment = "left", lineBreak = "clip" },
@@ -162,13 +166,13 @@ function obj:update(sessions)
 
   -- Always show collapsed pill; hover expands
   if self.state ~= "expanded" then
-    self:showCollapsed(#sessions, #busy > 0)
+    self:showCollapsed(#sessions, #busy)
   else
     -- If hovering and expanded, update content in place
     if #busy > 0 then
       self:renderExpanded(busy)
     else
-      self:showCollapsed(#sessions, false)
+      self:showCollapsed(#sessions, 0)
     end
   end
 end
@@ -197,10 +201,10 @@ function obj:animateTo(targetFrame, callback)
   end)
 end
 
-function obj:showCollapsed(sessionCount, hasBusy)
+function obj:showCollapsed(sessionCount, busyCount)
   self:stopPulse()
 
-  local w, h = self:renderCollapsed(sessionCount, hasBusy)
+  local w, h = self:renderCollapsed(sessionCount, busyCount)
   local pos = self:getPosition(w)
   local targetFrame = { x = pos.x, y = pos.y, w = w, h = h }
 
@@ -223,10 +227,10 @@ function obj:snapExpanded(busySessions)
   self:startPulse()
 end
 
-function obj:snapCollapsed(sessionCount, hasBusy)
+function obj:snapCollapsed(sessionCount, busyCount)
   if self.animTimer then self.animTimer:stop(); self.animTimer = nil end
   self:stopPulse()
-  local w, h = self:renderCollapsed(sessionCount, hasBusy)
+  local w, h = self:renderCollapsed(sessionCount, busyCount)
   local pos = self:getPosition(w)
   self.canvas:frame({ x = pos.x, y = pos.y, w = w, h = h })
   self.canvas:show()
