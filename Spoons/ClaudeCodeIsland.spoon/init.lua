@@ -57,6 +57,7 @@ function obj:init()
   self.canvas:canvasMouseEvents(true, true, true, true)
   self.canvas:mouseCallback(function(c, msg, id, x, y)
     if msg == "mouseDown" then
+      self.mouseIsDown = true
       self.dragStart = { x = x, y = y }
       self.dragOffset = { x = x, y = y }
       self.dragging = false
@@ -86,11 +87,14 @@ function obj:init()
         end
       end
       self.dragging = false
+      self.mouseIsDown = false
     elseif msg == "mouseEnter" then
+      if self.mouseIsDown then return end
       if #self.busySessions > 0 and self.state == "collapsed" then
         self:snapExpanded(self.busySessions)
       end
     elseif msg == "mouseExit" then
+      if self.mouseIsDown then return end
       -- Verify mouse is actually outside (replaceElements triggers spurious exits)
       local mouse = hs.mouse.absolutePosition()
       local f = c:frame()
