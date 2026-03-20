@@ -177,7 +177,7 @@ function obj:animateTo(targetFrame, callback)
   local startFrame = self.canvas:frame()
   local steps = 15  -- 250ms at 60fps
   local step = 0
-  self.animTimer = hs.timer.doEvery(1/60, function(t)
+  self.animTimer = hs.timer.doEvery(1/60, function()
     step = step + 1
     local p = 1 - (1 - step / steps) ^ 3  -- ease-out cubic
     self.canvas:frame({
@@ -187,7 +187,7 @@ function obj:animateTo(targetFrame, callback)
       h = lerp(startFrame.h, targetFrame.h, p),
     })
     if step >= steps then
-      t:stop()
+      self.animTimer:stop()
       self.animTimer = nil
       if callback then callback() end
     end
