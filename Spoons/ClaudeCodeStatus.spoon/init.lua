@@ -19,7 +19,7 @@ obj.pollTimer = nil
 obj.animationTimer = nil
 obj.animationFrame = 1
 obj.sessions = {}
-obj.allBusy = false
+obj.anyBusy = false
 
 -- Resolve tmux path (Hammerspoon GUI apps lack /opt/homebrew/bin in PATH)
 local tmuxPath
@@ -163,30 +163,28 @@ function obj:updateIcon()
   if #self.sessions == 0 then
     self.menubar:removeFromMenuBar()
     self:stopAnimation()
-    self.allBusy = false
+    self.anyBusy = false
     return
   end
 
   self.menubar:returnToMenuBar()
 
-  local allBusy = true
+  local anyBusy = false
   for _, s in ipairs(self.sessions) do
-    if not s.busy then
-      allBusy = false
+    if s.busy then
+      anyBusy = true
       break
     end
   end
 
-  if allBusy and not self.allBusy then
-    -- Transition to all-busy: start animation
-    self.allBusy = true
+  if anyBusy and not self.anyBusy then
+    self.anyBusy = true
     self:startAnimation()
-  elseif not allBusy and self.allBusy then
-    -- Transition to some-idle: stop animation
-    self.allBusy = false
+  elseif not anyBusy and self.anyBusy then
+    self.anyBusy = false
     self:stopAnimation()
     self.menubar:setTitle(self.idleEmoji)
-  elseif not allBusy then
+  elseif not anyBusy then
     self.menubar:setTitle(self.idleEmoji)
   end
 end
@@ -219,15 +217,16 @@ function obj:buildMenu()
   table.insert(menuItems, { title = "-" }) -- separator
 
   -- Session rows
+  local monoFont = { name = "Menlo", size = 12 }
   for _, s in ipairs(self.sessions) do
     local icon = s.busy and "◉" or "◯"
-    local title = icon .. "  " .. s.project
-    -- Show status on the right
-    local padding = string.rep(" ", math.max(1, 30 - #s.project))
-    title = title .. padding .. s.status
+    local left = icon .. " " .. s.project
+    local padding = string.rep(" ", math.max(2, 24 - #s.project))
+    local text = left .. padding .. s.status
+    local styledTitle = hs.styledtext.new(text, { font = monoFont })
 
     table.insert(menuItems, {
-      title = title,
+      title = styledTitle,
       fn = function() obj:switchToSession(s) end,
       disabled = (s.tmux == nil)
     })
