@@ -25,7 +25,7 @@ local function scanSessions()
   local sessions = {}
 
   -- Step 1: Find Claude CLI PIDs
-  local pgrepOut = hs.execute("pgrep -af '[/ ]claude( |$)' 2>/dev/null")
+  local pgrepOut = hs.execute("pgrep -fl claude 2>/dev/null")
   if not pgrepOut or pgrepOut == "" then return sessions end
 
   local claudePids = {}
