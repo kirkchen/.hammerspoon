@@ -124,19 +124,18 @@ function obj:renderCollapsed(sessionCount, hasBusy)
     },
     {  -- Status dot
       type = "circle",
-      center = { x = 18, y = h / 2 },
+      center = { x = 18, y = h / 2 + 1 },
       radius = 3.5,
       fillColor = dotColor,
       action = "fill",
     },
     {  -- Session count
       type = "text",
-      frame = { x = 26, y = 0, w = w - 26, h = h },
+      frame = { x = 26, y = (h - 14) / 2, w = w - 26, h = 14 },
       text = hs.styledtext.new(tostring(sessionCount), {
         font = { name = "Menlo", size = 11 },
         color = { red = 0.53, green = 0.53, blue = 0.53, alpha = 1 },
-        paragraphStyle = { alignment = "left", lineBreak = "clip",
-          minimumLineHeight = h, maximumLineHeight = h },
+        paragraphStyle = { alignment = "left", lineBreak = "clip" },
       }),
     },
   }
@@ -275,9 +274,10 @@ function obj:renderExpanded(busySessions)
     else
       dotColor = { red = 0.29, green = 0.87, blue = 0.5, alpha = 1 }
     end
+    local textY = y + (self.rowHeight - 15) / 2
     table.insert(elements, {
       type = "circle",
-      center = { x = 18, y = y + self.rowHeight / 2 },
+      center = { x = 18, y = y + self.rowHeight / 2 + 1 },
       radius = 3.5,
       fillColor = dotColor,
       action = "fill",
@@ -286,24 +286,22 @@ function obj:renderExpanded(busySessions)
     -- Project name
     table.insert(elements, {
       type = "text",
-      frame = { x = 28, y = y, w = 120, h = self.rowHeight },
+      frame = { x = 28, y = textY, w = 120, h = 15 },
       text = hs.styledtext.new(s.project, {
         font = { name = "Menlo", size = 12 },
         color = { red = 0.9, green = 0.9, blue = 0.9, alpha = 1 },
-        paragraphStyle = { alignment = "left", lineBreak = "clip",
-          minimumLineHeight = self.rowHeight, maximumLineHeight = self.rowHeight },
+        paragraphStyle = { alignment = "left", lineBreak = "clip" },
       }),
     })
 
     -- Status text
     table.insert(elements, {
       type = "text",
-      frame = { x = 148, y = y, w = w - 162, h = self.rowHeight },
+      frame = { x = 148, y = textY, w = w - 162, h = 15 },
       text = hs.styledtext.new(s.status, {
         font = { name = "Menlo", size = 11 },
         color = { red = 0.6, green = 0.6, blue = 0.6, alpha = 1 },
-        paragraphStyle = { alignment = "right", lineBreak = "clip",
-          minimumLineHeight = self.rowHeight, maximumLineHeight = self.rowHeight },
+        paragraphStyle = { alignment = "right", lineBreak = "clip" },
       }),
     })
   end
