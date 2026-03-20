@@ -16,6 +16,9 @@ Install:andUse("KSheet",
     }
   })
 
+hs.loadSpoon("ClaudeCodeStatus")
+spoon.ClaudeCodeStatus:start()
+
 -- HANDLE SCROLLING
 local oldmousepos = {}
 local scrollmult = -4	-- negative multiplier makes mouse work like traditional scrollwheel
