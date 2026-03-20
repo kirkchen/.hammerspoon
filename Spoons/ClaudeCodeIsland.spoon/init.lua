@@ -61,6 +61,41 @@ function obj:init()
   self.canvas:level(hs.canvas.windowLevels.overlay)
   self.canvas:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces
     + hs.canvas.windowBehaviors.stationary)
+
+  self.canvas:canvasMouseEvents(true, true, false, true)
+  self.canvas:mouseCallback(function(c, msg, id, x, y)
+    if msg == "mouseDown" then
+      self.dragStart = { x = x, y = y }
+      self.dragOffset = { x = x, y = y }
+      self.dragging = false
+    elseif msg == "mouseDragged" then
+      local dx = math.abs(x - self.dragStart.x)
+      local dy = math.abs(y - self.dragStart.y)
+      if dx > DRAG_THRESHOLD or dy > DRAG_THRESHOLD then
+        self.dragging = true
+      end
+      if self.dragging then
+        local f = c:frame()
+        c:frame({
+          x = f.x + x - self.dragOffset.x,
+          y = f.y + y - self.dragOffset.y,
+          w = f.w, h = f.h
+        })
+      end
+    elseif msg == "mouseUp" then
+      if self.dragging then
+        local f = c:frame()
+        self.position = { x = f.x, y = f.y }
+        hs.settings.set("ClaudeCodeIsland.position", self.position)
+      elseif id and type(id) == "string" and id:match("^row%-") then
+        local idx = tonumber(id:match("row%-(%d+)"))
+        if idx and self.busySessions[idx] then
+          spoon.ClaudeCodeStatus:switchToSession(self.busySessions[idx])
+        end
+      end
+      self.dragging = false
+    end
+  end)
 end
 
 function obj:renderCollapsed(sessionCount)
