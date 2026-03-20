@@ -102,14 +102,39 @@ local function scanSessions()
       end
     end
 
-    -- Check busy state (has child processes?)
+    -- Check busy state and identify what it's doing
     local childOut = hs.execute("pgrep -P " .. pid .. " 2>/dev/null")
     local isBusy = childOut ~= nil and childOut ~= ""
+    local status = "Waiting for input"
+    if isBusy then
+      -- Identify child process to determine activity
+      local firstChild = childOut:match("(%d+)")
+      if firstChild then
+        local childCmd = hs.execute("ps -p " .. firstChild .. " -o comm= 2>/dev/null")
+        if childCmd then
+          childCmd = childCmd:gsub("%s+$", "")
+          if childCmd:match("bash") or childCmd:match("zsh") or childCmd:match("sh$") then
+            status = "Running command"
+          elseif childCmd:match("node") then
+            status = "Thinking..."
+          elseif childCmd:match("git") then
+            status = "Running git"
+          else
+            status = "Working..."
+          end
+        else
+          status = "Working..."
+        end
+      else
+        status = "Working..."
+      end
+    end
 
     table.insert(sessions, {
       pid = pid,
       project = projectName,
       busy = isBusy,
+      status = status,
       tmux = tmuxInfo
     })
   end
@@ -189,17 +214,10 @@ function obj:buildMenu()
   -- Session rows
   for _, s in ipairs(self.sessions) do
     local icon = s.busy and "◉" or "◯"
-    local tmuxLabel = ""
-    if s.tmux then
-      tmuxLabel = s.tmux.session .. ":" .. s.tmux.window
-    end
-
     local title = icon .. "  " .. s.project
-    if tmuxLabel ~= "" then
-      -- Pad to align right column
-      local padding = string.rep(" ", math.max(1, 30 - #s.project))
-      title = title .. padding .. tmuxLabel
-    end
+    -- Show status on the right
+    local padding = string.rep(" ", math.max(1, 30 - #s.project))
+    title = title .. padding .. s.status
 
     table.insert(menuItems, {
       title = title,
