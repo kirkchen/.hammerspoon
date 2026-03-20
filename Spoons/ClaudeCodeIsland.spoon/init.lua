@@ -27,11 +27,6 @@ obj.animTimer = nil      -- frame animation timer
 obj.pulseTimer = nil     -- dot pulse timer
 obj.pulseAlpha = 1.0     -- current pulse opacity
 obj.screenWatcher = nil
-obj.dragging = false
-obj.dragStart = { x = 0, y = 0 }
-obj.dragOffset = { x = 0, y = 0 }
-
-local DRAG_THRESHOLD = 3
 
 local function lerp(a, b, t) return a + (b - a) * t end
 
@@ -54,53 +49,26 @@ function obj:init()
   self.canvas:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces
     + hs.canvas.windowBehaviors.stationary)
 
-  self.canvas:canvasMouseEvents(true, true, true, true)
+  self.canvas:canvasMouseEvents(true, true, false, false)
   self.canvas:mouseCallback(function(c, msg, id, x, y)
-    if msg == "mouseDown" then
-      self.mouseIsDown = true
-      self.dragStart = { x = x, y = y }
-      self.dragOffset = { x = x, y = y }
-      self.dragging = false
-    elseif msg == "mouseDragged" then
-      local dx = math.abs(x - self.dragStart.x)
-      local dy = math.abs(y - self.dragStart.y)
-      if dx > DRAG_THRESHOLD or dy > DRAG_THRESHOLD then
-        self.dragging = true
-      end
-      if self.dragging then
-        local f = c:frame()
-        c:frame({
-          x = f.x + x - self.dragOffset.x,
-          y = f.y + y - self.dragOffset.y,
-          w = f.w, h = f.h
-        })
-      end
-    elseif msg == "mouseUp" then
-      if self.dragging then
-        local f = c:frame()
-        self.position = { cx = f.x + f.w / 2, y = f.y }
-        hs.settings.set("ClaudeCodeIsland.position", self.position)
-      elseif id and type(id) == "string" and id:match("^row%-") then
+    if msg == "mouseUp" then
+      if id and type(id) == "string" and id:match("^row%-") then
         local idx = tonumber(id:match("row%-(%d+)"))
         if idx and self.busySessions[idx] then
           spoon.ClaudeCodeStatus:switchToSession(self.busySessions[idx])
         end
       end
-      self.dragging = false
-      self.mouseIsDown = false
     elseif msg == "mouseEnter" then
-      if self.mouseIsDown then return end
       if #self.busySessions > 0 and self.state == "collapsed" then
         self:snapExpanded(self.busySessions)
       end
     elseif msg == "mouseExit" then
-      if self.mouseIsDown then return end
       -- Verify mouse is actually outside (replaceElements triggers spurious exits)
       local mouse = hs.mouse.absolutePosition()
       local f = c:frame()
       local inside = mouse.x >= f.x and mouse.x <= f.x + f.w
                  and mouse.y >= f.y and mouse.y <= f.y + f.h
-      if not inside and self.state == "expanded" and not self.dragging then
+      if not inside and self.state == "expanded" then
         self:snapCollapsed(#self.lastSessions, #self.busySessions)
       end
     end
