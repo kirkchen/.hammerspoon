@@ -114,10 +114,49 @@ function obj:update(sessions)
   self.busySessions = busy
 
   if #busy == 0 then
-    self:showCollapsed(#sessions)
+    -- Debounce collapse to prevent flicker
+    if self.state == "expanded" and not self.collapseTimer then
+      self.collapseTimer = hs.timer.doAfter(self.collapseDelay, function()
+        self.collapseTimer = nil
+        -- Re-check: still no busy sessions?
+        local stillBusy = false
+        for _, s in ipairs(self.lastSessions) do
+          if s.busy then stillBusy = true; break end
+        end
+        if not stillBusy then
+          self:showCollapsed(#self.lastSessions)
+        end
+      end)
+    elseif self.state ~= "expanded" then
+      self:showCollapsed(#sessions)
+    end
   else
     self:showExpanded(busy)
   end
+end
+
+function obj:animateTo(targetFrame, callback)
+  -- Cancel any in-progress animation
+  if self.animTimer then self.animTimer:stop(); self.animTimer = nil end
+
+  local startFrame = self.canvas:frame()
+  local steps = 15  -- 250ms at 60fps
+  local step = 0
+  self.animTimer = hs.timer.doEvery(1/60, function(t)
+    step = step + 1
+    local p = 1 - (1 - step / steps) ^ 3  -- ease-out cubic
+    self.canvas:frame({
+      x = lerp(startFrame.x, targetFrame.x, p),
+      y = lerp(startFrame.y, targetFrame.y, p),
+      w = lerp(startFrame.w, targetFrame.w, p),
+      h = lerp(startFrame.h, targetFrame.h, p),
+    })
+    if step >= steps then
+      t:stop()
+      self.animTimer = nil
+      if callback then callback() end
+    end
+  end)
 end
 
 function obj:showCollapsed(sessionCount)
@@ -129,8 +168,15 @@ function obj:showCollapsed(sessionCount)
 
   local w, h = self:renderCollapsed(sessionCount)
   local pos = self:getPosition(w)
-  self.canvas:frame({ x = pos.x, y = pos.y, w = w, h = h })
-  self.canvas:show()
+  local targetFrame = { x = pos.x, y = pos.y, w = w, h = h }
+
+  if self.state == "hidden" then
+    -- No animation on first show
+    self.canvas:frame(targetFrame)
+    self.canvas:show()
+  else
+    self:animateTo(targetFrame)
+  end
   self.state = "collapsed"
 end
 
@@ -211,7 +257,6 @@ function obj:renderExpanded(busySessions)
 end
 
 function obj:showExpanded(busySessions)
-  -- Cancel pending collapse
   if self.collapseTimer then
     self.collapseTimer:stop()
     self.collapseTimer = nil
@@ -219,8 +264,14 @@ function obj:showExpanded(busySessions)
 
   local w, h = self:renderExpanded(busySessions)
   local pos = self:getPosition(w)
-  self.canvas:frame({ x = pos.x, y = pos.y, w = w, h = h })
-  self.canvas:show()
+  local targetFrame = { x = pos.x, y = pos.y, w = w, h = h }
+
+  if self.state == "hidden" then
+    self.canvas:frame(targetFrame)
+    self.canvas:show()
+  else
+    self:animateTo(targetFrame)
+  end
   self.state = "expanded"
 
   self:startPulse()
