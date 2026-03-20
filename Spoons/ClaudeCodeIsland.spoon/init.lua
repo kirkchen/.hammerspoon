@@ -135,7 +135,7 @@ function obj:renderCollapsed(sessionCount, busyCount)
     },
     {  -- Session count
       type = "text",
-      frame = { x = 26, y = (h - 14) / 2 + 2, w = w - 26, h = 14 },
+      frame = { x = 26, y = (h - 14) / 2 + 3, w = w - 26, h = 14 },
       text = hs.styledtext.new(label, {
         font = { name = "Menlo", size = 11 },
         color = { red = 0.53, green = 0.53, blue = 0.53, alpha = 1 },
