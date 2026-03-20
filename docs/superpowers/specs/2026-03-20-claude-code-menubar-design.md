@@ -14,20 +14,29 @@ A self-contained Hammerspoon Spoon following the existing project conventions (C
 
 | State | Display | Meaning |
 |---|---|---|
-| No Claude sessions | Hidden (menubar removed) | Nothing running |
+| No Claude sessions | Hidden (menubar hidden via `:removeFromMenuBar()`) | Nothing running |
 | Some sessions idle | 💤 (static) | At least one session waiting for user input |
 | All sessions busy | 🤔💡 alternating animation | All sessions actively executing |
 
 Animation cycles between 🤔 and 💡 at ~1 second intervals.
 
+### Menubar Lifecycle
+
+The `hs.menubar` item is created once on `:start()` and persists for the lifetime of the Spoon. Visibility is toggled via `:removeFromMenuBar()` / `:returnToMenuBar()` to avoid flicker from repeated create/destroy cycles.
+
+### Animation Timer Lifecycle
+
+A secondary `hs.timer` (1-second interval) drives the emoji animation. It is only started when the state transitions to "all busy" and stopped when transitioning to "some idle" or "no sessions". The poll timer (10-second) manages these transitions.
+
 ### Session Detection (every 10 seconds)
 
-Lightweight polling using process inspection:
+Lightweight polling using process inspection. All shell commands use `hs.execute()` (synchronous) — the commands are fast (< 100ms total) and 10-second intervals make blocking acceptable.
 
-1. **Find Claude processes**: `pgrep -x claude` to get PIDs
-2. **Map to tmux sessions**: For each Claude PID, walk the process tree upward to find the ancestor whose PID matches a tmux pane PID (`tmux list-panes -a -F '#{pane_pid} #{session_name}:#{window_index}.#{pane_index}'`)
-3. **Determine busy/idle**: Check if the Claude process has child processes (`pgrep -P <pid>`). Children present = busy (executing tools). No children = idle (waiting for input).
-4. **Derive project name**: Use the Claude process's CWD (via `lsof -p <pid> | grep cwd`) to extract the directory name as the display label.
+1. **Find Claude processes**: `pgrep -af claude` to get PIDs (using `-af` instead of `-x` to handle symlinked/versioned binary names)
+2. **Build process tree**: Single `ps -eo pid,ppid` call to build a full PID→PPID map, then walk upward for each Claude PID
+3. **Map to tmux sessions**: Compare ancestors against tmux pane PIDs from `tmux list-panes -a -F '#{pane_pid} #{session_name}:#{window_index}.#{pane_index}'`
+4. **Determine busy/idle**: Check if the Claude process has child processes (`pgrep -P <pid>`). Children present = busy (executing tools). No children = idle (waiting for input).
+5. **Derive project name**: Use `lsof -a -d cwd -p <pid> -Fn` to reliably extract the CWD, then use the last path component as the display label.
 
 ### Dropdown Menu (built on click)
 
@@ -53,9 +62,10 @@ Claude Code Sessions (4)
 
 When the user clicks a session row:
 
-1. Activate iTerm2 via `hs.application.launchOrFocus("iTerm2")`
-2. Execute `tmux switch-client -t <session_name>` in iTerm2 via `hs.osascript.applescript` to send the command to iTerm2's current terminal session
-3. Then `tmux select-window -t <session_name>:<window_index>` to land on the correct window
+1. Execute tmux commands directly via `hs.execute()` (these are tmux server-side commands, no terminal needed):
+   - `tmux list-clients -F '#{client_name}'` to find the active client
+   - `tmux switch-client -c <client> -t <session_name>:<window_index>` to switch the client to the target session and window
+2. Activate iTerm2 via `hs.application.launchOrFocus("iTerm2")` to bring it to the foreground
 
 ### File Structure
 
@@ -84,6 +94,7 @@ Install:andUse("ClaudeCodeStatus", { start = true })
 - If `tmux` is not running: hide menubar icon
 - If `pgrep`/`lsof` fails: skip that process, continue with others
 - If iTerm2 is not running when switching: launch it first
+- If no tmux clients found: skip `switch-client`, just launch iTerm2
 
 ## Testing
 
