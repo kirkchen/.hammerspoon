@@ -120,10 +120,49 @@ end
 function obj:updateIcon()
   if #self.sessions == 0 then
     self.menubar:removeFromMenuBar()
+    self:stopAnimation()
+    self.allBusy = false
     return
   end
+
   self.menubar:returnToMenuBar()
-  self.menubar:setTitle(self.idleEmoji)
+
+  local allBusy = true
+  for _, s in ipairs(self.sessions) do
+    if not s.busy then
+      allBusy = false
+      break
+    end
+  end
+
+  if allBusy and not self.allBusy then
+    -- Transition to all-busy: start animation
+    self.allBusy = true
+    self:startAnimation()
+  elseif not allBusy and self.allBusy then
+    -- Transition to some-idle: stop animation
+    self.allBusy = false
+    self:stopAnimation()
+    self.menubar:setTitle(self.idleEmoji)
+  elseif not allBusy then
+    self.menubar:setTitle(self.idleEmoji)
+  end
+end
+
+function obj:startAnimation()
+  self.animationFrame = 1
+  self.menubar:setTitle(self.busyEmojis[1])
+  self.animationTimer = hs.timer.doEvery(self.animationInterval, function()
+    self.animationFrame = (self.animationFrame % #self.busyEmojis) + 1
+    self.menubar:setTitle(self.busyEmojis[self.animationFrame])
+  end)
+end
+
+function obj:stopAnimation()
+  if self.animationTimer then
+    self.animationTimer:stop()
+    self.animationTimer = nil
+  end
 end
 
 function obj:start()
