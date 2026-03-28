@@ -16,15 +16,15 @@ Install:andUse("KSheet",
     }
   })
 
-hs.loadSpoon("ClaudeCodeStatus")
-hs.loadSpoon("ClaudeCodeIsland")
+-- hs.loadSpoon("ClaudeCodeStatus")
+-- hs.loadSpoon("ClaudeCodeIsland")
 
-spoon.ClaudeCodeStatus.onRefresh = function(sessions)
-  spoon.ClaudeCodeIsland:update(sessions)
-end
+-- spoon.ClaudeCodeStatus.onRefresh = function(sessions)
+--   spoon.ClaudeCodeIsland:update(sessions)
+-- end
 
-spoon.ClaudeCodeStatus:start()
-spoon.ClaudeCodeIsland:start()
+-- spoon.ClaudeCodeStatus:start()
+-- spoon.ClaudeCodeIsland:start()
 
 -- HANDLE SCROLLING
 local oldmousepos = {}
